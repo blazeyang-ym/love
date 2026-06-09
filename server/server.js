@@ -25,14 +25,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 
-// 静态文件服务 - 提供前端构建产物
-const distPath = path.resolve(__dirname, '..', 'dist');
-app.use(express.static(distPath));
-// SPA fallback: 所有非API路由返回index.html
-app.get(/^\/(?!api\/).*/, (_req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
-});
-
+// API 路由必须在静态文件之前注册
 app.post('/api/chat', async (req, res) => {
   const { message, personality, history, characterName, characterDesc, affection, memories, scene } = req.body;
   if (!message || !personality) {
@@ -68,6 +61,14 @@ app.post('/api/proactive', async (req, res) => {
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', api: true, keySet: process.env.LLM_API_KEY ? true : false });
+});
+
+// 静态文件服务 - 提供前端构建产物（API之后）
+const distPath = path.resolve(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+// SPA fallback: 所有非API路由返回index.html
+app.get(/^\/(?!api\/).*/, (_req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3001;

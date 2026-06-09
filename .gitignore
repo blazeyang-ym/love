@@ -6,3 +6,4 @@ deploy/
 .DS_Store
 tsconfig.tsbuildinfo
 dreamina-install.sh
+server/package*.json

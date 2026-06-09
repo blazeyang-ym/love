@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { CharacterData, GameState, Message, RelationshipStage, STAGE_THRESHOLDS, DiaryEntry } from './types';
 import { computeMotionProfile } from './utils/animationProfile';
 import { generateResponse } from './data/personalityResponses';
@@ -31,14 +31,14 @@ export default function App() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  useState(() => {
+  useEffect(() => {
     if (checked.current) return;
     checked.current = true;
     fetch(`${SERVER_URL}/api/health`)
       .then(r => r.json())
       .then(d => setApiReady(d.api === true && d.keySet === true))
       .catch(() => setApiReady(false));
-  });
+  }, []);
 
   const handleCharacterCreated = useCallback((char: CharacterData) => {
     const motion = computeMotionProfile(char.personality);

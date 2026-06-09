@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: xinyu-game
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: node server/server.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_API_BASE
+        sync: false
+      - key: LLM_MODEL
+        sync: false

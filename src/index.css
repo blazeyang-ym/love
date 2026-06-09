@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Noto Sans SC', sans-serif;
+  background: #0f0a1a;
+  color: #e2e8f0;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#root {
+  height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(244, 63, 94, 0.3);
+  border-radius: 2px;
+}
+
+/* 玻璃态效果 */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border: 0.5px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-strong {
+  background: rgba(15, 10, 26, 0.8);
+  backdrop-filter: blur(30px);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+
+/* 渐变文字 */
+.gradient-text {
+  background: linear-gradient(135deg, #fb7185, #f43f5e, #e11d48);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 光晕边框 */
+.glow-border {
+  box-shadow: 0 0 15px rgba(244, 63, 94, 0.15), inset 0 0 15px rgba(244, 63, 94, 0.05);
+}
+
+/* 情绪光晕 */
+.emotion-glow-happy {
+  box-shadow: 0 0 30px rgba(251, 191, 36, 0.15);
+}
+.emotion-glow-love {
+  box-shadow: 0 0 40px rgba(244, 63, 94, 0.25);
+}
+.emotion-glow-shy {
+  box-shadow: 0 0 20px rgba(244, 114, 182, 0.12);
+}
+.emotion-glow-sad {
+  box-shadow: 0 0 20px rgba(96, 165, 250, 0.1);
+}
+
+/* 动画过渡 */
+.transition-mood {
+  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 星星背景 */
+.stars {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}

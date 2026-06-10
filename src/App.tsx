@@ -1,12 +1,24 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { CharacterData, GameState, Message, RelationshipStage, STAGE_THRESHOLDS, DiaryEntry } from './types';
+import { CharacterData, GameState, Message, RelationshipStage, STAGE_THRESHOLDS } from './types';
 import { computeMotionProfile } from './utils/animationProfile';
 import { generateResponse } from './data/personalityResponses';
 import CreateCharacter from './pages/CreateCharacter';
 import ChatRoom from './pages/ChatRoom';
 
 const STORAGE_KEY = 'love-game-state';
+const SAVES_KEY = 'love-game-saves';
 const SERVER_URL = ''; // 同源部署，使用相对路径
+
+interface SaveSlot {
+  id: string;
+  name: string;
+  savedAt: number;
+  characterName: string;
+  affection: number;
+  stage: string;
+  messageCount: number;
+  state: GameState;
+}
 
 function loadState(): GameState | null {
   try {
@@ -18,6 +30,37 @@ function loadState(): GameState | null {
 
 function saveState(state: GameState) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { }
+}
+
+function getSavedGames(): SaveSlot[] {
+  try {
+    const raw = localStorage.getItem(SAVES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveGameSlot(state: GameState, label?: string): SaveSlot {
+  const saves = getSavedGames();
+  const slot: SaveSlot = {
+    id: crypto.randomUUID(),
+    name: label || `${state.character?.name || '角色'} · 好感${Math.round(state.affection)}`,
+    savedAt: Date.now(),
+    characterName: state.character?.name || '未知',
+    affection: Math.round(state.affection),
+    stage: state.stage,
+    messageCount: state.messages.length,
+    state: JSON.parse(JSON.stringify(state)), // deep clone
+  };
+  // 最多保留 5 个存档
+  if (saves.length >= 5) saves.shift();
+  saves.push(slot);
+  try { localStorage.setItem(SAVES_KEY, JSON.stringify(saves)); } catch { }
+  return slot;
+}
+
+function deleteSaveSlot(id: string) {
+  const saves = getSavedGames().filter(s => s.id !== id);
+  try { localStorage.setItem(SAVES_KEY, JSON.stringify(saves)); } catch { }
 }
 
 export default function App() {
@@ -147,13 +190,34 @@ export default function App() {
   }, []);
 
   const handleReset = useCallback(() => {
+    // 先自动存档当前的进度
+    if (state.character) {
+      saveGameSlot(state);
+    }
     localStorage.removeItem(STORAGE_KEY);
     setState({
       character: null, messages: [], affection: 0,
       currentEmotion: 'neutral', stage: 'stranger',
       memories: [], currentScene: 'garden', diaries: [],
     });
-  }, []);
+  }, [state]);
+
+  // 手动存档
+  const handleSaveGame = useCallback(() => {
+    if (!state.character) return;
+    const slot = saveGameSlot(state);
+    alert(`已保存「${slot.name}」`);
+  }, [state]);
+
+  // 加载存档
+  const handleLoadGame = useCallback((slot: SaveSlot) => {
+    // 先存档当前进度
+    if (state.character) {
+      saveGameSlot(state);
+    }
+    setState(slot.state);
+    saveState(slot.state);
+  }, [state]);
 
   // 角色主动发起话题
   const handleProactive = useCallback(async (): Promise<Message | null> => {
@@ -197,7 +261,7 @@ export default function App() {
   }, [apiReady]);
 
   if (!state.character) {
-    return <CreateCharacter onCreated={handleCharacterCreated} />;
+    return <CreateCharacter onCreated={handleCharacterCreated} savedGames={getSavedGames()} onLoadGame={handleLoadGame} />;
   }
 
   return (
@@ -207,6 +271,7 @@ export default function App() {
       onReset={handleReset}
       onSceneChange={setScene}
       onProactive={handleProactive}
+      onSave={handleSaveGame}
       ollamaReady={apiReady}
     />
   );

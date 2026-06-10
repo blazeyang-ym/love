@@ -9,6 +9,7 @@ interface Props {
   onReset: () => void;
   onSceneChange: (id: string) => void;
   onProactive: () => Promise<Message | null>;
+  onSave: () => void;
   ollamaReady?: boolean | null;
 }
 
@@ -31,7 +32,7 @@ const EMOTION_FILTERS: Record<EmotionState, string> = {
 
 const QUICK_ACTIONS = ['你好呀', '你今天好美', '在想什么呢', '晚安'];
 
-export default function ChatRoom({ state, onSend, onReset, onSceneChange, onProactive, ollamaReady }: Props) {
+export default function ChatRoom({ state, onSend, onReset, onSceneChange, onProactive, onSave, ollamaReady }: Props) {
   const [input, setInput] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [showMemories, setShowMemories] = useState(false);
@@ -72,29 +73,33 @@ export default function ChatRoom({ state, onSend, onReset, onSceneChange, onProa
     }
   }, [stage]);
 
-  // 主动话题：只在对话活跃期触发（最近3轮内用户有回复），20秒后
+  // 主动话题：角色回复后 20 秒，如果用户还没说话，角色主动搭话
   const proactiveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSender = messages.length > 0 ? messages[messages.length - 1].sender : null;
+  const proactiveLock = useRef(false); // 防止定时器重复触发
   useEffect(() => {
     if (proactiveTimer.current) clearTimeout(proactiveTimer.current);
-    // 判断是否在活跃对话中：最近6条消息里有用户的
+    if (proactiveLock.current) { proactiveLock.current = false; return; }
+
+    const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+    // 条件：角色刚回复过 && 最近有用户互动 && 角色没连续说太多 && 对话有一定量
     const recent = messages.slice(-6);
     const hasRecentUser = recent.some(m => m.sender === 'user');
     const charCount = recent.filter(m => m.sender === 'character').length;
 
-    if (lastSender === 'user' && hasRecentUser && charCount <= 3 && messages.length >= 4) {
+    if (lastMsg?.sender === 'character' && hasRecentUser && charCount <= 3 && messages.length >= 4) {
       proactiveTimer.current = setTimeout(async () => {
+        proactiveLock.current = true;
         const msg = await onProactive();
         if (msg) {
           setIsTyping(true);
           setTimeout(() => setIsTyping(false), 400);
         }
-      }, 20000); // 20秒
+      }, 20000);
     }
     return () => {
       if (proactiveTimer.current) clearTimeout(proactiveTimer.current);
     };
-  }, [messages.length, lastSender]);
+  }, [messages]);
 
   const handleSend = (text: string) => {
     const t = text.trim();
@@ -172,6 +177,10 @@ export default function ChatRoom({ state, onSend, onReset, onSceneChange, onProa
         </div>
         {showMenu && (
           <div className="absolute top-11 right-4 bg-[#1a1428] rounded-xl py-2 min-w-[130px] z-30 shadow-2xl border border-white/[0.06]">
+            <button onClick={() => { setShowMenu(false); onSave(); }}
+              className="w-full px-4 py-2 text-xs text-mist-400 hover:text-white hover:bg-white/5 text-left transition-colors">
+              保存进度
+            </button>
             <button onClick={() => { setShowMenu(false); onReset(); }}
               className="w-full px-4 py-2 text-xs text-mist-400 hover:text-white hover:bg-white/5 text-left transition-colors">
               重新创建角色

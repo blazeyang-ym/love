@@ -1,8 +1,21 @@
 import { useState, useCallback } from 'react';
-import { CharacterData, CharacterPersonality, PERSONALITY_TRAITS } from '../types';
+import { CharacterData, CharacterPersonality, PERSONALITY_TRAITS, STAGE_LABELS } from '../types';
+
+interface SaveSlot {
+  id: string;
+  name: string;
+  savedAt: number;
+  characterName: string;
+  affection: number;
+  stage: string;
+  messageCount: number;
+  state: any;
+}
 
 interface Props {
   onCreated: (char: CharacterData) => void;
+  savedGames: SaveSlot[];
+  onLoadGame: (slot: SaveSlot) => void;
 }
 
 const AVATAR_MAP: Record<string, string> = {
@@ -49,7 +62,7 @@ const PRESETS = [
   { name: '夜澜', desc: '神秘御姐', p: { extraversion: 0.3, sensitivity: 0.6, warmth: 0.3, elegance: 0.8, playfulness: 0.2 } },
 ];
 
-export default function CreateCharacter({ onCreated }: Props) {
+export default function CreateCharacter({ onCreated, savedGames, onLoadGame }: Props) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [personality, setPersonality] = useState<CharacterPersonality>({
@@ -208,6 +221,40 @@ export default function CreateCharacter({ onCreated }: Props) {
           >
             开始互动
           </button>
+
+          {/* 存档列表 */}
+          {savedGames.length > 0 && (
+            <div>
+              <label className="block text-xs text-mist-400 mb-2">继续之前的旅程</label>
+              <div className="space-y-2">
+                {savedGames.slice().reverse().map(slot => (
+                  <button
+                    key={slot.id}
+                    onClick={() => onLoadGame(slot)}
+                    className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06]
+                               hover:border-heart-500/30 hover:bg-white/[0.06] transition-all text-left"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm text-mist-200 font-medium">{slot.characterName}</span>
+                        <span className="text-[10px] text-mist-500 ml-2">
+                          {STAGE_LABELS[slot.stage as keyof typeof STAGE_LABELS] || slot.stage}
+                        </span>
+                      </div>
+                      <span className="text-xs text-heart-400">♥ {slot.affection}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-[10px] text-mist-600">
+                      <span>{slot.messageCount} 条消息</span>
+                      <span>·</span>
+                      <span>{new Date(slot.savedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                      <span>·</span>
+                      <span>{slot.name}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

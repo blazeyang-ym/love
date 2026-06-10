@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { GameState, STAGE_LABELS, EmotionState, RelationshipStage, DiaryEntry, Message } from '../types';
 import { getAnimationForEmotion } from '../utils/animationProfile';
 import { SCENES, getScene } from '../data/scenes';
+import { useSpeechRecognition, speakText, isSpeechSupported, isTtsSupported } from '../hooks/useSpeech';
 
 interface Props {
   state: GameState;
@@ -42,6 +43,56 @@ export default function ChatRoom({ state, onSend, onReset, onSceneChange, onProa
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showStageUp, setShowStageUp] = useState(false);
   const prevMsgCount = useRef(state.messages.length);
+
+  // ---- 语音 ----
+  const [voiceOn, setVoiceOn] = useState(true); // TTS 开关
+  const [voiceInterim, setVoiceInterim] = useState(''); // 语音识别中间结果
+  const [voiceError, setVoiceError] = useState('');
+  const voiceSupported = isSpeechSupported();
+  const ttsSupported = isTtsSupported();
+  const voiceSpeaking = useRef(false);
+
+  const handleVoiceResult = useCallback((text: string, isFinal: boolean) => {
+    setVoiceInterim(text);
+    if (isFinal) {
+      setInput(text);
+      setVoiceInterim('');
+    }
+  }, []);
+
+  const handleVoiceError = useCallback((err: string) => {
+    setVoiceError(err);
+    setTimeout(() => setVoiceError(''), 3000);
+  }, []);
+
+  const { state: voiceState, supported: micReady, start: startVoice, stop: stopVoice } =
+    useSpeechRecognition({
+      onResult: handleVoiceResult,
+      onError: handleVoiceError,
+    });
+
+  // 错误提示自动消失
+  useEffect(() => {
+    if (!voiceError) return;
+    const t = setTimeout(() => setVoiceError(''), 3500);
+    return () => clearTimeout(t);
+  }, [voiceError]);
+
+  // 角色消息播放 TTS
+  const prevCharMsgId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!voiceOn || !ttsSupported || !state.character) return;
+    const msgs = state.messages;
+    const last = msgs[msgs.length - 1];
+    if (last && last.sender === 'character' && last.id !== prevCharMsgId.current) {
+      prevCharMsgId.current = last.id;
+      const toSpeak = last.content.length > 120 ? last.content.slice(0, 100) + '…' : last.content;
+      voiceSpeaking.current = true;
+      speakText(toSpeak, state.character.personality, () => {
+        voiceSpeaking.current = false;
+      });
+    }
+  }, [state.messages, voiceOn, ttsSupported]);
 
   const { character, messages, affection, currentEmotion, stage, currentScene, diaries } = state;
   if (!character) return null;
@@ -383,14 +434,104 @@ export default function ChatRoom({ state, onSend, onReset, onSceneChange, onProa
           )}
 
           <div className="flex-shrink-0 px-4 pb-3 pt-1">
+            {/* 语音错误提示 */}
+            {voiceError && (
+              <div className="mb-1.5 px-3 py-1 rounded-lg bg-red-500/10 border border-red-500/20 text-[10px] text-red-400 text-center">
+                {voiceError}
+              </div>
+            )}
             <div className="flex items-end gap-2">
-              <textarea value={input} onChange={e=>setInput(e.target.value)}
+              {/* 麦克风按钮 */}
+              {voiceSupported && (
+                <button
+                  onPointerDown={() => { if (voiceState === 'idle') startVoice(); }}
+                  onPointerUp={() => { if (voiceState === 'listening') stopVoice(); }}
+                  onPointerLeave={() => { if (voiceState === 'listening') stopVoice(); }}
+                  onClick={() => {
+                    // fallback for desktop click
+                    if (voiceState === 'idle') startVoice();
+                  }}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
+                    voiceState === 'listening'
+                      ? 'bg-red-500/20 border border-red-500/50 animate-pulse'
+                      : 'bg-white/5 border border-white/10 hover:border-heart-500/30'
+                  }`}
+                  title="按住说话"
+                >
+                  {voiceState === 'listening' ? (
+                    <svg className="w-4 h-4 text-red-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                      <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-mist-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                      <line x1="12" y1="19" x2="12" y2="23"/>
+                      <line x1="8" y1="23" x2="16" y2="23"/>
+                    </svg>
+                  )}
+                </button>
+              )}
+
+              {/* TTS 开关 */}
+              {ttsSupported && (
+                <button
+                  onClick={() => setVoiceOn(!voiceOn)}
+                  className={`w-8 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
+                    voiceOn ? 'text-heart-400 bg-heart-500/10 border border-heart-500/20' : 'text-mist-600 bg-white/[0.02] border border-white/[0.03]'
+                  }`}
+                  title={voiceOn ? '关闭语音播放' : '开启语音播放'}
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                    {!voiceOn && (
+                      <>
+                        <line x1="23" y1="9" x2="17" y2="15"/>
+                        <line x1="17" y1="9" x2="23" y2="15"/>
+                      </>
+                    )}
+                    {voiceOn && (
+                      <>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                      </>
+                    )}
+                  </svg>
+                </button>
+              )}
+
+              <textarea
+                value={voiceState === 'listening' ? voiceInterim || input : input}
+                onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={`对${character.name}说点什么……`} rows={1}
+                placeholder={voiceState === 'listening'
+                  ? (voiceInterim ? '松开发送…' : '正在听…')
+                  : voiceSupported
+                    ? `对${character.name}说点什么… 或按住🎤说话`
+                    : `对${character.name}说点什么…`}
+                rows={1}
                 className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white
                   placeholder:text-mist-600 focus:outline-none focus:border-heart-500/50 focus:ring-1 focus:ring-heart-500/20
-                  transition-all resize-none max-h-24" style={{lineHeight:'1.4'}} />
-              <button onClick={()=>handleSend(input)} disabled={!input.trim()}
+                  transition-all resize-none max-h-24"
+                style={{
+                  lineHeight: '1.4',
+                  ...(voiceState === 'listening' ? { borderColor: 'rgba(239,68,68,0.4)', boxShadow: '0 0 12px rgba(239,68,68,0.1)' } : {})
+                }}
+              />
+              <button onClick={() => {
+                if (voiceState === 'listening') {
+                  stopVoice();
+                  if (voiceInterim) setInput(voiceInterim);
+                  // 给一点时间让 final result 进来
+                  setTimeout(() => {
+                    const txt = voiceInterim || input;
+                    if (txt.trim()) handleSend(txt);
+                  }, 200);
+                } else {
+                  handleSend(input);
+                }
+              }} disabled={!input.trim() && !voiceInterim.trim()}
                 className="w-10 h-10 rounded-xl bg-gradient-to-r from-heart-500 to-rose-500 flex items-center justify-center
                   flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed hover:from-heart-400 hover:to-rose-400
                   transition-all shadow-lg shadow-heart-500/20">

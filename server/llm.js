@@ -66,7 +66,7 @@ ${closenessHint}${memoryBlock}${sceneBlock}
 /**
  * 主动发起话题的 Prompt
  */
-function buildProactivePrompt({ personality, characterName, characterDesc, affection, memories, scene, lastTopic }) {
+function buildProactivePrompt({ personality, characterName, characterDesc, affection, memories, scene, lastTopic, recentTopics }) {
   const p = personality;
   const traits = [];
   if (p.extraversion > 0.65) traits.push('活泼外向、主动热情');
@@ -89,32 +89,50 @@ function buildProactivePrompt({ personality, characterName, characterDesc, affec
     memoryBlock = '\n她记得：' + memories.slice(-4).join('；') + '\n';
   }
 
+  let recentTopicsBlock = '';
+  if (recentTopics?.length > 0) {
+    recentTopicsBlock = '\n【最近聊过的话题】' + recentTopics.join('、') + '——不要重复聊这些！';
+  }
+
   // 根据外向程度决定主动频率和话题数量
   const topicLimit = p.extraversion > 0.6 ? '2' : '1';
 
   return `你是${characterName}，${characterDesc}，性格${traitText}。你们${closenessHint}（好感度${Math.round(affection)}/100）。
-当前场景：${scene?.description || '在花园'}${memoryBlock}
+当前场景：${scene?.description || '在花园'}${memoryBlock}${recentTopicsBlock}
 
-现在是你在主动开启对话。要求：
-1. 自然自然地开启一个话题，可以基于上次聊的内容（${lastTopic || '无'}）延伸，也可以说此刻的想法。
-2. 每次只抛 ${topicLimit} 个话题，不要话题跳跃。
-3. 话不要多，20-40字即可，给对方留回话空间。
-4. 如果对方一直没回你，就停下，不要再追问。
+现在是你在主动开启对话，你已经看到了上方的对话历史。请基于刚聊过的内容，自然地抛出${topicLimit}个新话题。要求：
+1. 必须是新话题或对刚才对话的自然延伸，绝对不能重复最近聊过的话题。
+2. 话不要多，20-40字即可，给对方留回话空间。
+3. 如果对方一直没回你，就停下，不要再追问。
 
 输出一行 JSON：
 {"text":"你的话","emotion":"happy|shy|neutral|love|teasing","delta":0到2,"topics":["话题1","话题2"]}`;
 }
 
 export async function proactiveChat({ personality, history, characterName, characterDesc, affection, memories, scene }) {
-  // 提取最后的话题
-  const lastMessages = (history || []).slice(-4);
-  const charMsgs = lastMessages.filter(m => m.sender === 'character').map(m => m.content);
-  const lastTopic = charMsgs.length > 0 ? charMsgs[charMsgs.length - 1].slice(0, 30) : '';
+  // 提取最近的聊天话题，用于去重
+  const recentHistory = (history || []).slice(-8);
+  const recentTopics: string[] = [];
+  const charMsgs = recentHistory.filter(m => m.sender === 'character').map(m => m.content);
+  
+  // 从角色最近发言中提取关键词作为"最近聊过的话题"
+  const allRecentContent = charMsgs.join(' ').toLowerCase();
+  const topicKeywords = ['天气', '工作', '梦想', '食物', '音乐', '电影', '旅行', '游戏', '宠物', '家人', '朋友', '爱好', '心情', '过去', '未来'];
+  for (const kw of topicKeywords) {
+    if (allRecentContent.includes(kw)) recentTopics.push(kw);
+  }
+  const lastTopic = charMsgs.length > 0 ? charMsgs[charMsgs.length - 1].slice(0, 40) : '';
 
   const systemPrompt = buildProactivePrompt({
     personality, characterName, characterDesc, affection: affection || 0,
-    memories: memories || [], scene, lastTopic,
+    memories: memories || [], scene, lastTopic, recentTopics,
   });
+
+  // 将对话历史作为真正的消息传给 LLM（这是关键修复！）
+  const chatHistory = recentHistory.map(m => ({
+    role: m.sender === 'user' ? 'user' : 'assistant',
+    content: m.content,
+  }));
 
   const { API_KEY, API_BASE, MODEL } = getConfig();
 
@@ -123,7 +141,10 @@ export async function proactiveChat({ personality, history, characterName, chara
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
     body: JSON.stringify({
       model: MODEL,
-      messages: [{ role: 'system', content: systemPrompt }],
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory,
+      ],
       temperature: 0.9,
       max_tokens: 200,
       stream: false,

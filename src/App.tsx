@@ -120,7 +120,7 @@ export default function App() {
           body: JSON.stringify({
             message: text,
             personality: s.character.personality,
-            history: s.messages.slice(-8),
+            history: s.messages.slice(-16),
             characterName: s.character.name,
             characterDesc: s.character.description,
             affection: s.affection,
@@ -229,7 +229,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           personality: s.character.personality,
-          history: s.messages.slice(-6),
+          history: s.messages.slice(-10),
           characterName: s.character.name,
           characterDesc: s.character.description,
           affection: s.affection,

@@ -156,6 +156,14 @@ export default function ChatRoom({ state, onSend, onReset, onSceneChange, onProa
     const t = text.trim();
     if (!t) return;
     setInput('');
+    // 预热语音引擎：移动端浏览器要求在用户手势回调中激活 speechSynthesis
+    if (voiceOn && ttsSupported) {
+      try {
+        const wu = new SpeechSynthesisUtterance('');
+        wu.volume = 0;
+        speechSynthesis.speak(wu);
+      } catch {}
+    }
     onSend(t);
   };
 

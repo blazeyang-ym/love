@@ -135,7 +135,7 @@ export function speakText(
   const synth = window.speechSynthesis;
   if (!synth) return null;
 
-  // Cancel any ongoing speech
+  // 取消之前的语音，但不要取消得太早
   synth.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
@@ -172,7 +172,27 @@ export function speakText(
     utterance.onend = onEnd;
   }
 
-  synth.speak(utterance);
+  // 如果语音库还没加载完，等待加载后再播放
+  const doSpeak = () => {
+    synth.speak(utterance);
+  };
+
+  if (synth.getVoices().length === 0) {
+    // 部分浏览器异步加载语音库
+    const onVoicesChanged = () => {
+      synth.removeEventListener('voiceschanged', onVoicesChanged);
+      doSpeak();
+    };
+    synth.addEventListener('voiceschanged', onVoicesChanged);
+    // 超时保护：1秒后不管有没有加载完都播
+    setTimeout(() => {
+      synth.removeEventListener('voiceschanged', onVoicesChanged);
+      if (synth.speaking) return;
+      doSpeak();
+    }, 1000);
+  } else {
+    doSpeak();
+  }
 
   return {
     stop: () => synth.cancel(),

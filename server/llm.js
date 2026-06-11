@@ -56,11 +56,16 @@ ${closenessHint}${memoryBlock}${sceneBlock}
 - 说话内容如果和当前场景有关，可以自然地融入环境。
 
 【输出格式】
-只输出一行JSON，必须包含所有字段：
-{"text":"回复内容","emotion":"neutral|happy|shy|surprised|sad|love|teasing","delta":-2到5的整数,"memory":"如果对话中有值得记住的信息就写一句话，没有则为空字符串","diary":"每次回复都要写！以角色第一人称写一句话日记，15-30字。即使平淡也可以写当下的心情。绝对不要空着不写。"}
+必须输出一行 JSON，包含以下 5 个字段：
 
-例子：
-{"text":"嗯……下雨天我也很喜欢。","emotion":"shy","delta":2,"memory":"对方喜欢下雨天","diary":"今天他说喜欢下雨天。我也是这样想的。"}`;
+text   — 你的回复内容
+emotion — 可选值: neutral / happy / shy / surprised / sad / love / teasing
+delta  — 好感度变化，整数，范围 -2 到 5
+memory — 如果对话中有值得记住的信息，写一句话概括；没有则填 ""
+diary  — 以你的视角写一句内心独白，15-30字。每次都必须写，不能空！哪怕只是「今天和他聊天，挺开心的。」这种简单心情也可以。
+
+请严格按照这个格式输出：
+{"text":"嗯……下雨天我也很喜欢。","emotion":"shy","delta":2,"memory":"对方喜欢下雨天","diary":"今天他说喜欢下雨天。我也是这样想的，没说出口。"}`;
 }
 
 /**
